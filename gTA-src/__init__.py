@@ -4,7 +4,7 @@ generalized Turnstile Assistant (gTA)
 PyMOL plugin that performs turnstile rotations on molecular structures.
 
 Key behavior:
-- User selects one anchor atom, then one connection atom for each arm.
+- User selects one central atom, then one connection atom for each arm.
 - After selecting each arm connection atom, press Wizard panel button
   'Arm Atoms Selection Done' to record that arm.
 - When done selecting arms (arm count >= 2), click GUI 'Picking Finished' to
@@ -251,6 +251,8 @@ def _find_connected_atoms(adj_matrix, start_atoms):
 
 object_prefix = "_pw"
 object_subgroup_prefix = "_s"
+axis_vis_name = "_gta_rotation_axis"
+axis_end_obj = "_gta_rotation_axis_end"
 
 
 class GTAWizard(Wizard):
@@ -268,6 +270,7 @@ class GTAWizard(Wizard):
         self.pick_count = 0          # number of finished groups (anchor=0th, then arms)
         self.subgroup_count = 0      # picks within current group
         self.subgroup_sum = []       # list of counts per finished group
+        self.labeled_selections = [] # selection names that got O/A1/A2/... labels
         self.object_count = 0
         self.object_prefix = object_prefix
         self.object_subgroup_prefix = object_subgroup_prefix
@@ -278,6 +281,18 @@ class GTAWizard(Wizard):
         cmd.deselect()
 
     def reset(self):
+        # Remove labels we added for central/arm picks.
+        for sel in self.labeled_selections:
+            try:
+                cmd.label(sel, "''")
+            except Exception:
+                pass
+        self.labeled_selections = []
+
+        # Remove rotation axis visualization (distance + temporary endpoint object).
+        cmd.delete(axis_vis_name)
+        cmd.delete(axis_end_obj)
+
         cmd.delete(self.object_prefix + "*")
         cmd.delete("_indicate*")
         cmd.unpick()
@@ -296,7 +311,7 @@ class GTAWizard(Wizard):
             return ['Picking finished. Use GUI slider to rotate, or press Done/Reset.']
         else:   
             if self.pick_count == 0:
-                return ['Please click on the anchor atom...']
+                return ['Please click on the central atom...']
             else:
                 arm_num = self.pick_count  # 1-based arm index
                 return [f'Pick arm #{arm_num} link atom, then press "Arm Atoms Selection Done"','OR','Click the "Picking Finished" button']
@@ -319,6 +334,10 @@ class GTAWizard(Wizard):
             print("Error: please select atoms, not bonds")
             return
 
+        is_central_pick = (self.pick_count == 0 and self.subgroup_count == 0)
+        # For arms, only the first pick in each group is the connection atom.
+        # Label it as A1/A2/... based on arm index.
+        is_first_pick_of_arm = (self.pick_count > 0 and self.subgroup_count == 0)
         atom_name = (
             self.object_prefix
             + str(self.pick_count)
@@ -327,6 +346,15 @@ class GTAWizard(Wizard):
         )
 
         self.pickNextAtom(atom_name)
+
+        if is_central_pick:
+            cmd.label(atom_name, '"O"')
+            self.labeled_selections.append(atom_name)
+
+        if is_first_pick_of_arm:
+            arm_label = f"A{self.pick_count}"
+            cmd.label(atom_name, f'"{arm_label}"')
+            self.labeled_selections.append(atom_name)
 
         if self.pick_count == 0:
             # Anchor group: auto-finish after first pick
@@ -383,6 +411,8 @@ def _make_dialog():
         'relevant_idx0': None,     # list[int] to rotate
         'anchor_point': None,
         'axis_point': None,        # new_circle_center
+        'axis_vis_name': axis_vis_name,
+        'axis_end_obj': axis_end_obj,
     }
 
     dlg = QtWidgets.QDialog()
@@ -416,16 +446,23 @@ def _make_dialog():
         state['anchor_point'] = None
         state['axis_point'] = None
 
+    def _clear_axis_visualization():
+        # Remove previous axis visualization objects if they exist.
+        cmd.delete(state['axis_vis_name'])
+        cmd.delete(state['axis_end_obj'])
+
     def start_wiz():
         wiz.reset()
+        _clear_axis_visualization()
         cmd.set_wizard(wiz)
+        cmd.set("mouse_selection_mode", 0)  # ensure atomic picking on every new run
         _reset_runtime()
 
         form.slider_angle.setDisabled(True)
         form.slider_angle.setValue(0)
         form.angle_text.setDisabled(True)
         form.set_angle.setDisabled(True)
-        _set_status("Please select anchor then arm connection atoms. \nAfter each arm pick, press 'Arm Atom Selection Done'. \nWhen finished, click 'Picking Finished'.")
+        _set_status("Please select central atom then arm connection atoms. \nAfter each arm pick, press 'Arm Atom Selection Done'. \nWhen finished, click 'Picking Finished'.")
 
     def _build_model_info():
         # Expect exactly one object loaded
@@ -451,10 +488,10 @@ def _make_dialog():
     def picking_finish():
         # Validate groups: subgroup_sum contains [anchor_count, arm1_count, arm2_count, ...]
         if len(wiz.subgroup_sum) < 3:
-            _set_status("Please finish selection: anchor + at least 2 arms. Use 'Arm Atom Selection Done' after each arm.")
+            _set_status("Please finish selection: central atom + at least 2 arms. Use 'Arm Atom Selection Done' after each arm.")
             return
         if wiz.subgroup_sum[0] != 1:
-            _set_status("Anchor selection should contain exactly 1 atom. Reset and try again.")
+            _set_status("Central atom selection should contain exactly 1 atom. Reset and try again.")
             return
 
         try:
@@ -471,12 +508,12 @@ def _make_dialog():
         str00 = object_prefix + "0" + object_subgroup_prefix + "0"
         md_anchor = cmd.get_model(str00, 1)
         if not md_anchor.atom:
-            _set_status("Anchor selection is empty. Reset and try again.")
+            _set_status("Central atom selection is empty. Reset and try again.")
             return
         anchor_id = md_anchor.atom[0].id
         anchor_idx0 = id_to_idx0.get(anchor_id)
         if anchor_idx0 is None:
-            _set_status("Anchor atom not found in object model.")
+            _set_status("Central atom not found in object model.")
             return
 
         # Build arm list using the first picked atom in each arm group: "_pw{i}_s0"
@@ -519,6 +556,25 @@ def _make_dialog():
         state['relevant_idx0'] = relevant_idx0
         state['anchor_point'] = anchor_point.copy()
         state['axis_point'] = np.array(axis_point, dtype=float)
+
+        # Visualize rotation axis: central atom -> point at 2x extension toward axis point.
+        _clear_axis_visualization()
+        axis_end = anchor_point + 2.0 * (state['axis_point'] - anchor_point)
+        cmd.pseudoatom(
+            state['axis_end_obj'],
+            pos=axis_end.tolist(),
+            label='',
+            quiet=1,
+        )
+        cmd.distance(
+            state['axis_vis_name'],
+            str00,
+            state['axis_end_obj'],
+            label=0,
+            quiet=1,
+        )
+        # Keep only the dashed distance object.
+        cmd.delete(state['axis_end_obj'])
 
         # Enable controls
         form.slider_angle.setEnabled(True)
@@ -571,6 +627,6 @@ def _make_dialog():
     form.revert.clicked.connect(revert_changes)
 
     # Initial status
-    _set_status("Click Start, then select anchor & arms. \nPress 'Arm Atom Selection Done' in Wizard after each arm. \nFinally, click 'Picking Finished'.")
+    _set_status("Click Start, then select central atom & arms. \nPress 'Arm Atom Selection Done' in Wizard after each arm. \nFinally, click 'Picking Finished'.")
 
     return dlg
