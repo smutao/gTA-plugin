@@ -1,5 +1,7 @@
 # generalized Turnstile Assistant (gTA)
 
+https://github.com/user-attachments/assets/d9b6e81a-0872-45d9-8a25-c9cdf71855ee
+
 `generalized Turnstile Assistant (gTA)` is a PyMOL plugin for performing generalized turnstile rotations on molecular structures directly inside the PyMOL GUI.
 
 ## Dependencies
@@ -7,7 +9,7 @@
 This plugin requires:
 
 - PyMOL 3.0 or later
-- `scipy`
+- scipy
 
 ## Installing PyMOL
 
