@@ -74,4 +74,4 @@ The current implementation assumes:
 
 If you use this software in your research, please cite:
 
-> Tao, Y.; Wang, X.; Zou, W.; Kraka, E. *Generalized Turnstile Rotation: Formulation, Visualization, Workflow Implementation, and Application for Modeling Polytopal Rearrangements*. Journal of Computational Chemistry **2026**, *47*, e70432. https://doi.org/10.1002/jcc.70432
+> Tao, Y.; Wang, X.; Zou, W.; Kraka, E. *Generalized Turnstile Rotation: Formulation, Visualization, Workflow Implementation, and Application for Modeling Polytopal Rearrangements*. Journal of Computational Chemistry **2026**, *47*, e70432. https://doi.org/10.1002/jcc.70432 [Preprint PDF](https://chemrxiv.org/doi/full/10.26434/chemrxiv.15000069/v2)
