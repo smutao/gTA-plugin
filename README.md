@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/smutao/gTA-plugin)
+
 # generalized Turnstile Assistant (gTA)
 
 https://github.com/user-attachments/assets/d9b6e81a-0872-45d9-8a25-c9cdf71855ee
